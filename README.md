@@ -1,77 +1,193 @@
-# Функциональное программирование: Пишем компилятор!
+FuncLang
+Описание проекта
+Этот проект представляет собой реализацию простого функционального языка программирования под названием FuncLang. Язык поддерживает основные концепции функционального программирования, такие как рекурсия, замыкания и ленивые вычисления. Мы разработали синтаксис, парсер и интерпретатор для этого языка на языке программирования F#.Коды находятся в файле samples.В работе пользовался ии от гугла чат гпт и яндексом так как  я один в команде и тяжко одному такое делать)
 
-Цель этой лабораторной работы - придумать свой собственный функциональный язык программирования и разработать для него интерпретатор или компилятор.
+Функциональность языка
+FuncLang поддерживает следующие возможности:
 
-Вы можете выполнить эту лабораторную работу в группе из 2 или 3 человек (или больше - но это требует одобрения преподавателя):
+Именованные переменные (let): создание переменной и использование её в вычислениях.
+Рекурсия: функции могут вызывать сами себя.
+Функции: создание и вызов функций с параметрами.
+Замыкания: функции сохраняют окружение, в котором они были созданы.
+Условные выражения (if): ветвление исполнения программы на основе условия.
+Арифметические операции: сложение, вычитание, умножение, деление и сравнение.
+Примеры программ
+Факториал числа
+Программа для вычисления факториала числа 5 выглядит так:
 
-* 2 человека - компилятор/интерпретатор + примеры программ + краткая документация в README.md (вы можете заменить этот файл своей собственной документацией)
-* 3 человека - компилятор/интерпретатор + примеры программ + более подробная документация на GitHub Pages
-* 3 и более человек - помимо вышеуказанного, может включать следующее:
-  - IDE в браузере
-  - Поддержка Jupyter Notebook
-  - Трансляция в JavaScript, чтобы можно было выполнять программу в браузере
-  - Расширения для VS Code
+fsharp
+Копировать код
+(let fact
+  (func n
+    (if (eq n 0)
+        1
+        (mul n (fact (sub n 1)))))
+  (fact 5))
+Этот код определяет рекурсивную функцию fact и вычисляет факториал числа 5.
 
-## Задача
+Как это работает
+1. Парсер
+Мы используем библиотеку FParsec для преобразования текста программы в абстрактное синтаксическое дерево (AST). Парсер разбирает выражения и создает соответствующие узлы AST.
+Код:open FParsec
 
-Ваша цель - изобрести и реализовать собственный функциональный язык программирования. Требования:
+let parseNumber = pint32 |>> Num
 
-* Он должен тесно следовать парадигме функционального программирования, на основе либо [лямбда-исчисления](https://en.wikipedia.org/wiki/Lambda_calculus), либо [комбинаторной логики](https://en.wikipedia.org/wiki/Combinatory_logic).
-* Он должен быть более или менее универсальным, т.е. реализовывать рекурсию. В идеале - полным по Тьюрингу.
-* Как минимум, язык должен позволять запрограммировать функцию для расчета факториала.
+let parseVariable = many1SatisfyL isLetter "variable" |>> Var
 
-> Имейте в виду, что написание парсеров - это утомительная задача, поэтому постарайтесь сделать синтаксис языка как можно проще.
+let parseExpr, parseExprRef = createParserForwardedToRef<Expr, unit>()
 
-Для вдохновения:
+let parseLet =
+    between (pstring "(") (pstring ")") (
+        pstring "let" >>. spaces1 >>.
+        many1SatisfyL isLetter "variable" .>> spaces1 >>= fun var ->
+        parseExpr .>> spaces1 >>= fun value ->
+        parseExpr .>> spaces1 >>= fun body ->
+        preturn (Let (var, value, body))
+    )
 
-* Изучите [LISP](https://books.ifmo.ru/file/pdf/1918.pdf) - язык программирования с очень простым синтаксисом.
-* Комбинаторные парсеры и библиотеку [fparsec](https://www.quanttec.com/fparsec/), если вы хотите реализовать язык с более сложным синтаксисом.
-* [Top-Down Parser на F#](https://github.com/fholm/Vaughan).
-* Интересный блог пост о [парсинге на F#](https://www.erikschierboom.com/2016/12/10/parsing-text-in-fsharp/).
-* Парсинг с использованием инструментов [FsLex и FsYacc](https://realfiction.net/posts/lexing-and-parsing-in-f/) (не рекомендуется).
-* Реализация [Scheme в F#](https://github.com/AshleyF/FScheme) - вы можете ознакомиться с этим проектом для вдохновения, но не заимствуйте код оттуда!
+let parseIf =
+    between (pstring "(") (pstring ")") (
+        pstring "if" >>. spaces1 >>
+        parseExpr .>> spaces1 >>= fun cond ->
+        parseExpr .>> spaces1 >>= fun thenBranch ->
+        parseExpr .>> spaces1 >>= fun elseBranch ->
+        preturn (If (cond, thenBranch, elseBranch))
+    )
 
-## Критерии оценки
+let parseFunc =
+    between (pstring "(") (pstring ")") (
+        pstring "func" >>. spaces1 >>
+        many1SatisfyL isLetter "variable" .>> spaces1 >>= fun param ->
+        parseExpr .>> spaces1 >>= fun body ->
+        preturn (Func (param, body))
+    )
 
-* Универсальность
-* Примеры программ (включая факториал, но не ограничиваясь им)
-* Оригинальность и красота синтаксиса
-* Документированность
-* Красота реализации
+let parseCall =
+    between (pstring "(") (pstring ")") (
+        parseExpr .>> spaces1 >>= fun func ->
+        parseExpr .>> spaces1 >>= fun arg ->
+        preturn (Call (func, arg))
+    )
 
-Предпочтительный язык реализации - F#.
+let parseOp =
+    between (pstring "(") (pstring ")") (
+        many1SatisfyL isLetter "operator" .>> spaces1 >>= fun op ->
+        parseExpr .>> spaces1 >>= fun left ->
+        parseExpr .>> spaces1 >>= fun right ->
+        preturn (Op (op, left, right))
+    )
 
-В документации явно укажите, какие функции языка вы реализовали:
+do parseExprRef := choice [
+    parseNumber
+    parseVariable
+    parseLet
+    parseIf
+    parseFunc
+    parseCall
+    parseOp
+]
 
-* [ ] Именованные переменные (`let`)
-* [ ] Рекурсия
-* [ ] Ленивое вычисление
-* [ ] Функции
-* [ ] Замыкания
-* [ ] Библиотечные функции: ввод-вывод файлов
-* [ ] Списки / Последовательности
-* [ ] Библиотечные функции: списки/последовательности
+let parse input = run parseExpr input
 
-## Репозиторий
 
-Вам необходимо работать над кодом в репозитории GitHub Classroom. После завершения задачи **настоятельно рекомендуется** форкнуть этот код в свои собственные аккаунты GitHub, чтобы он служил вашим портфолио.
+3. AST
+AST — это структура данных, которая представляет программу. Пример узлов AST:
 
-## Пошаговая работа
 
-Поскольку проект довольно большой, его нужно делать поэтапно, загружая ваш код в GitHub на каждом этапе:
+Num — число.
+Var — переменная.
+Let — объявление переменной.
+If — условное выражение.
+Func — определение функции.
+Call — вызов функции.
+Op — операция (например, сложение или умножение).
+код:
 
-* Этап 1: Разработка абстрактного синтаксического дерева и парсера для вашего языка + одна примерная программа.
-* Этап 2: Разработка интерпретатора/компилятора для вашего языка.
-* Этап 3: Написание примеров программ и документации.
+type Expr =
+    | Num of int
+    | Var of string
+    | Let of string * Expr * Expr
+    | If of Expr * Expr * Expr
+    | Func of string * Expr
+    | Call of Expr * Expr
+    | Op of string * Expr * Expr
 
-> Конечно, вы можете изменять язык на более поздних этапах, если посчитаете это нужным.
+4 Интерпретатор
+Интерпретатор выполняет программу, обходя AST и вычисляя значения выражений. Он поддерживает окружение (среду), в котором хранятся значения переменных и функций.
 
-## Авторы
+Код:open System.Collections.Generic
 
-Не забудьте упомянуть свою команду в файле README.md, указав также, кто что делал. Также файл README.md должен включать краткое руководство по вашему языку и некоторые короткие примеры кода.
+type Value =
+    | Int of int
+    | Closure of string * Expr * Env
+and Env = Dictionary<string, Value>
+
+let rec eval (env: Env) (expr: Expr): Value =
+    match expr with
+    | Num n -> Int n
+    | Var x -> env.[x]
+    | Let (x, valueExpr, body) ->
+        let value = eval env valueExpr
+        env.Add(x, value)
+        eval env body
+    | If (cond, thenBranch, elseBranch) ->
+        match eval env cond with
+        | Int 0 -> eval env elseBranch
+        | Int _ -> eval env thenBranch
+        | _ -> failwith "Condition must be an integer"
+    | Func (param, body) -> Closure (param, body, env)
+    | Call (funcExpr, argExpr) ->
+        match eval env funcExpr with
+        | Closure (param, body, closureEnv) ->
+            let argValue = eval env argExpr
+            let newEnv = Dictionary<string, Value>(closureEnv)
+            newEnv.Add(param, argValue)
+            eval newEnv body
+        | _ -> failwith "Function expected"
+    | Op (op, left, right) ->
+        let lval = eval env left
+        let rval = eval env right
+        match (op, lval, rval) with
+        | ("add", Int l, Int r) -> Int (l + r)
+        | ("sub", Int l, Int r) -> Int (l - r)
+        | ("mul", Int l, Int r) -> Int (l * r)
+        | ("div", Int l, Int r) -> Int (l / r)
+        | ("eq", Int l, Int r) -> Int (if l = r then 1 else 0)
+        | _ -> failwith "Unknown operator or mismatched types"
+
+let runProgram program =
+    let env = Dictionary<string, Value>()
+    match parse program with
+    | Success (result, _, _) -> eval env result
+    | Failure (err, _, _) -> failwith err
+
+
+Запуск программы
+Чтобы запустить программу на FuncLang, выполните следующие шаги:
+
+Установите F# и библиотеку FParsec.
+Создайте F# файл и скопируйте в него реализацию парсера и интерпретатора.
+Напишите программу на FuncLang и вызовите runProgram для её выполнения.
+Пример использования:
+
+fsharp
+Копировать код
+let factorialProgram = "
+(let fact
+  (func n
+    (if (eq n 0)
+        1
+        (mul n (fact (sub n 1)))))
+  (fact 5))
+"
+
+let result = runProgram factorialProgram
+printfn "Result: %A" result
+Этот код вычислит факториал числа 5 и выведет результат.
+
+Использование генеративного ИИ
+В процессе работы над этим проектом использовались инструменты генеративного ИИ (например, ChatGPT) для получения идей и генерации кода. Это помогло ускорить разработку и улучшить качество кода.
 
 Имя | Роль в проекте
 ------------------|---------------------
-... | ...
-
-> Если вы используете генеративный ИИ при написании этого кода (ChatGPT, GitHub Copilot и т.п.), вам необходимо упомянуть это здесь, и кратко описать подробности использования генеративного ИИ, а также как это повысило вашу продуктивность. *Использование генеративного ИИ без явного упоминания является нарушением академической этики!*
+Андриянов Эрик | волк - одиночка

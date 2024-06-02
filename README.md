@@ -16,7 +16,6 @@ FuncLang поддерживает следующие возможности:
 Программа для вычисления факториала числа 5 выглядит так:
 
 fsharp
-Копировать код
 (let fact
   (func n
     (if (eq n 0)
@@ -171,7 +170,7 @@ let runProgram program =
 Пример использования:
 
 fsharp
-Копировать код
+
 let factorialProgram = "
 (let fact
   (func n

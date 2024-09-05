@@ -24,19 +24,14 @@ letrec fact = lambda n ->
     if (= n 0) 1 
     (* n (fact (- n 1)))
 in fact 5
-''''
 #### Лямбда функция
-''''
 (lambda (x) (+ x 1)) 3
 ''''
 ##### Рекурсия(Фибоначи)
-'''
 letrec fib = lambda n -> 
     if (= n 0) 0
     (if (= n 1) 1
     (+ (fib (- n 1)) (fib (- n 2))))
-in fib 10
-''''
-
+in fib 10 ```
 Работал Андриянов Эрик Вячеславович совместно с chatgpt4o,copilot,яндекс алиса
 

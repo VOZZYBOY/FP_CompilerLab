@@ -7,31 +7,32 @@ type Expr =
     | If of Expr * Expr * Expr
 
 let tokenize input =
-    input.Split(['('; ')'; ' '; '\n'; '\t'], System.StringSplitOptions.RemoveEmptyEntries)
+    input.Split([| '('; ')'; ' '; '\n'; '\t' |], System.StringSplitOptions.RemoveEmptyEntries)
     |> Array.toList
 
 let rec parseExpr tokens =
     match tokens with
-    | "(" :: "let" :: var :: "=" :: rest ->
+    | "let" :: var :: "=" :: rest -> // Парсинг let выражения
         let expr1, tokens' = parseExpr rest
         let expr2, tokens'' = parseExpr tokens'
         Let(var, expr1, expr2), tokens''
-    | "(" :: "add" :: rest ->
+    | "add" :: rest -> // Парсинг операции сложения
         let expr1, tokens' = parseExpr rest
         let expr2, tokens'' = parseExpr tokens'
         Add(expr1, expr2), tokens''
-    | "(" :: "mul" :: rest ->
+    | "mul" :: rest -> // Парсинг операции умножения
         let expr1, tokens' = parseExpr rest
         let expr2, tokens'' = parseExpr tokens'
         Mul(expr1, expr2), tokens''
-    | "(" :: "if" :: rest ->
+    | "if" :: rest -> // Парсинг условия
         let cond, tokens' = parseExpr rest
         let expr1, tokens'' = parseExpr tokens'
         let expr2, tokens''' = parseExpr tokens''
         If(cond, expr1, expr2), tokens'''
-    | num :: rest when System.Int32.TryParse(num).IsSuccess ->
+    | num :: rest when System.Int32.TryParse(num).IsSuccess -> // Парсинг целых чисел
         Int(int num), rest
-    | var :: rest -> Var(var), rest
+    | var :: rest -> // Парсинг переменных
+        Var(var), rest
 
 let parse input = 
     let tokens = tokenize input
@@ -50,7 +51,8 @@ let rec eval env expr =
     | If(cond, e1, e2) ->
         if eval env cond <> 0 then eval env e1 else eval env e2
 
-let program = "(let x = (add 5 10) (if (mul x 2) (add x 5) 0))"
+// Пример программы
+let program = ["let"; "x"; "="; "add"; "5"; "10"; "if"; "mul"; "x"; "2"; "add"; "x"; "5"; "0"]
 
 let main () =
     let expr = parse program
@@ -58,8 +60,4 @@ let main () =
     printfn "Result: %d" result
 
 main ()
-
-
-// primer 
-(let x = (add 5 10) (if (mul x 2) (add x 5) 0))
 

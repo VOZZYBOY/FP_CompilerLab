@@ -1,97 +1,65 @@
-// Определение AST
 type Expr =
-    | Var of string                // Переменные
-    | Int of int                   // Целочисленные значения
-    | Lambda of string * Expr       // Лямбда-функции
-    | App of Expr * Expr            // Применение функций
-    | LetRec of string * Expr * Expr // Рекурсивное определение
-    | If of Expr * Expr * Expr      // Условные выражения
-    | BinOp of string * Expr * Expr // Бинарные операции
+    | Var of string
+    | Int of int
+    | Add of Expr * Expr
+    | Mul of Expr * Expr
+    | Let of string * Expr * Expr
+    | If of Expr * Expr * Expr
 
-// Определение окружения
-type Env = (string * Expr) list
+let tokenize input =
+    input.Split(['('; ')'; ' '; '\n'; '\t'], System.StringSplitOptions.RemoveEmptyEntries)
+    |> Array.toList
 
-// Функция вычисления (интерпретатор)
-let rec eval (expr: Expr) (env: Env) : Expr =
+let rec parseExpr tokens =
+    match tokens with
+    | "(" :: "let" :: var :: "=" :: rest ->
+        let expr1, tokens' = parseExpr rest
+        let expr2, tokens'' = parseExpr tokens'
+        Let(var, expr1, expr2), tokens''
+    | "(" :: "add" :: rest ->
+        let expr1, tokens' = parseExpr rest
+        let expr2, tokens'' = parseExpr tokens'
+        Add(expr1, expr2), tokens''
+    | "(" :: "mul" :: rest ->
+        let expr1, tokens' = parseExpr rest
+        let expr2, tokens'' = parseExpr tokens'
+        Mul(expr1, expr2), tokens''
+    | "(" :: "if" :: rest ->
+        let cond, tokens' = parseExpr rest
+        let expr1, tokens'' = parseExpr tokens'
+        let expr2, tokens''' = parseExpr tokens''
+        If(cond, expr1, expr2), tokens'''
+    | num :: rest when System.Int32.TryParse(num).IsSuccess ->
+        Int(int num), rest
+    | var :: rest -> Var(var), rest
+
+let parse input = 
+    let tokens = tokenize input
+    fst (parseExpr tokens)
+
+let rec eval env expr =
     match expr with
-    | Var x -> 
-        match List.tryFind (fun (name, _) -> name = x) env with
-        | Some (_, v) -> v
-        | None -> failwithf "Переменная %s не найдена" x
-    
-    | Int v -> Int v
-    
-    | Lambda(arg, body) -> Lambda(arg, body)
-    
-    | App(func, arg) ->
-        let funcEval = eval func env
-        let argEval = eval arg env
-        match funcEval with
-        | Lambda(argName, body) ->
-            let newEnv = (argName, argEval) :: env
-            eval body newEnv
-        | _ -> failwith "Не является функцией"
-    
-    | LetRec(name, valueExpr, body) ->
-        let recEnv = (name, eval valueExpr env) :: env
-        eval body recEnv
-    
-    | BinOp(op, left, right) ->
-        let leftEval = eval left env
-        let rightEval = eval right env
-        match (leftEval, rightEval) with
-        | (Int l, Int r) ->
-            match op with
-            | "+" -> Int (l + r)
-            | "-" -> Int (l - r)
-            | "*" -> Int (l * r)
-            | "/" -> Int (l / r)
-            | "=" -> if l = r then Int 1 else Int 0
-            | _ -> failwith "Неподдерживаемая операция"
-        | _ -> failwith "Операнды должны быть числами"
-    
-    | If(cond, thenBranch, elseBranch) ->
-        let condEval = eval cond env
-        match condEval with
-        | Int 0 -> eval elseBranch env
-        | _ -> eval thenBranch env
+    | Int n -> n
+    | Add(e1, e2) -> eval env e1 + eval env e2
+    | Mul(e1, e2) -> eval env e1 * eval env e2
+    | Var name -> Map.find name env
+    | Let(name, e1, e2) ->
+        let value = eval env e1
+        let newEnv = Map.add name value env
+        eval newEnv e2
+    | If(cond, e1, e2) ->
+        if eval env cond <> 0 then eval env e1 else eval env e2
 
-// Пример 1: Функция факториала
-let factorialProgram = 
-    LetRec("fact", 
-        Lambda("n", 
-            If(BinOp("=", Var "n", Int 0), 
-               Int 1, 
-               BinOp("*", Var "n", App(Var "fact", BinOp("-", Var "n", Int 1)))
-            )
-        ),
-        App(Var "fact", Int 5)
-    )
+let program = "(let x = (add 5 10) (if (mul x 2) (add x 5) 0))"
 
-let result1 = eval factorialProgram []
-printfn "Факториал 5: %A" result1  // Ожидаемый результат: Int 120
+let main () =
+    let expr = parse program
+    let result = eval Map.empty expr
+    printfn "Result: %d" result
 
-// Пример 2: Лямбда-функция и её применение
-let lambdaExample = App(Lambda("x", BinOp("+", Var "x", Int 1)), Int 3)
+main ()
 
-let result2 = eval lambdaExample []
-printfn "Лямбда пример: %A" result2  // Ожидаемый результат: Int 4
 
-// Пример 3: Числа Фибоначчи
-let fibonacciProgram = 
-    LetRec("fib", 
-        Lambda("n", 
-            If(BinOp("=", Var "n", Int 0), 
-               Int 0, 
-               If(BinOp("=", Var "n", Int 1), 
-                  Int 1, 
-                  BinOp("+", App(Var "fib", BinOp("-", Var "n", Int 1)), App(Var "fib", BinOp("-", Var "n", Int 2)))
-               )
-            )
-        ),
-        App(Var "fib", Int 10)
-    )
-
-let result3 = eval fibonacciProgram []
-printfn "Фибоначчи 10: %A" result3  // Ожидаемый результат: Int 55
+// primer 
+(let x = (add 5 10) (if (mul x 2) (add x 5) 0))
 
